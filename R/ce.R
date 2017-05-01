@@ -1,9 +1,9 @@
 #fms2-----------------------------------
 ##' Covariance Estimation by modified PCA
-##' 
+##'
 ##' @param x matrix or dataframe of timeseries returns
 ##' @param weight weights in estimation
-##' @param center flag to center 
+##' @param center flag to center
 ##' @param frac.var controls auto-selection of number of factord
 ##' @param iter.max maximum number of iterations
 ##' @param nfac.miss number of factors to estimate if data is missing
@@ -23,9 +23,9 @@
 ##' @section Details: more detail on the underlying algorithm may be found in documentation for BurStFin
 ##' @author Giles Heywood from Pat Burns original
 ##' @export fms2
-`fms2` <-function (x, weight=seq(1, 3, length=nobs), center=TRUE, 
-    frac.var=.5, iter.max=1, nfac.miss=1, full.min=20, reg.min=40, 
-    sd.min=20, quan.sd=.90, tol=1e-3, zero.load=FALSE, 
+`fms2` <-function (x, weight=seq(1, 3, length=nobs), center=TRUE,
+    frac.var=.5, iter.max=1, nfac.miss=1, full.min=20, reg.min=40,
+    sd.min=20, quan.sd=.90, tol=1e-3, zero.load=FALSE,
     range.factors=c(20,20),
     lambda=0,               #lambda=0 for PB original; lambda=0.15 OK
     minunique=0.02,         #minunique=0 for PB original
@@ -33,7 +33,7 @@
     shrinkv=shrinkb,        #vol shrinkage to mean
     shrinkr=0.9,             #regressed loadings shrinkage to mean
     ...
-    ) {     
+    ) {
     fun.copyright <- "Placed in the public domain in 2006 by Burns Statistics"
     fun.version <- "factor.model.stat 006"
     stopifnot(lambda>=0 & lambda<=1)
@@ -65,16 +65,16 @@
     num.mis <- colSums(xna)
 
     if(any(num.mis > 0)) {
-        if(sum(num.mis == 0) < full.min) 
+        if(sum(num.mis == 0) < full.min)
             stop("not enough columns without missing values")
-        if(!length(dimnames(x)[[2]]) | length(dimnames(x)[[2]])!=unique(length(dimnames(x)[[2]]))) 
+        if(!length(dimnames(x)[[2]]) | length(dimnames(x)[[2]])!=unique(length(dimnames(x)[[2]])))
             stop("x needs unique column names when missing values exist")
 
         max.miss <- max(num.mis)
         lnfm <- length(nfac.miss)
         if(lnfm == 0) stop("nfac.miss must have positive length")
         nfac.miss <- round(nfac.miss)
-        if(any(nfac.miss < 0)) 
+        if(any(nfac.miss < 0))
             stop("negative values in nfac.miss")
         if(lnfm < max.miss) {
             nfac.miss <- c(nfac.miss, rep(nfac.miss[lnfm],
@@ -101,13 +101,13 @@
             center <- rep(0, nassets)
         }
     } else if(length(center) != nassets) stop("center is the wrong length")
-    
+
     x <- sweep(x=x, MARGIN=2, STATS=center, FUN="-")
 
     sdev <- sqrt(apply(X=x, MARGIN=2, FUN=subfun.ssd, weight=weight, sd.min=sd.min))
 
     if(any(sdev <= 0, na.rm=TRUE)) {
-        stop(paste(sum(sdev <= 0, na.rm=TRUE), 
+        stop(paste(sum(sdev <= 0, na.rm=TRUE),
             "asset(s) with constant returns"))
     }
     if(any(is.na(sdev))) {
@@ -131,9 +131,9 @@
     if(iter.max > 0) {
         method[num.mis == 0,] <- "P"
         cormat <- cov.wt(
-                        x=x[, num.mis == 0, drop=FALSE], 
+                        x=x[, num.mis == 0, drop=FALSE],
                         wt = weight,                        #weighted estimation
-                        cor = TRUE, 
+                        cor = TRUE,
                         center = FALSE,
                         method = "unbiased"
                         )$cor
@@ -147,7 +147,7 @@
                 diag(cor.red) <- diag(cor.red) - uniqueness
                 t.eig <- eigen(x=cor.red)
                 t.val <- t.eig$value[fseq]
-                t.val[t.val < 0] <- 0                       #could want to know how many of these there are... 
+                t.val[t.val < 0] <- 0                       #could want to know how many of these there are...
                 loadings1 <- scale(x=t.eig$vectors[,fseq],scale=1./sqrt(t.val),center=FALSE)
                 loadings <- scale(x=loadings1,scale=(t.val[1]/t.val)**lambda,center=FALSE) #shrink factor 2-k loadings
                 loadings[,1] <- loadings[,1]*(1-shrinkb)+mean(loadings[,1]*shrinkb,na.rm=TRUE) #shrink factor 1 loadings
@@ -180,7 +180,7 @@
         bvec[j] <- 1
         gma[,j] <- solve.QP(Dmat=Dmat, dvec=dvec, Amat=Amat, bvec=bvec, meq=meq, factorized=FALSE)$solution
         if(all(c(1,-1)%in%sign(loadings[,j]))) {
-            delta[,j] <-  solve.QP(Dmat=Dmat, dvec=dvec, Amat=cbind(loadings,abs(loadings)[,j]), bvec=c(zeros,1), meq=meq+1, factorized=FALSE)$solution 
+            delta[,j] <-  solve.QP(Dmat=Dmat, dvec=dvec, Amat=cbind(loadings,abs(loadings)[,j]), bvec=c(zeros,1), meq=meq+1, factorized=FALSE)$solution
         } else {
             delta[,j] <-  0
         }
@@ -190,7 +190,7 @@
     hpl[rownames(delta),] <- delta
     qua <- array(0, c(nassets, 1))       #loading on factor1^2
     dimnames(qua) <- list(dimnames(x)[[2]], NULL)
-    unwscores <- x[, num.mis == 0, drop=FALSE]%*%gma   
+    unwscores <- x[, num.mis == 0, drop=FALSE]%*%gma
     imissing <- (1:nassets)[num.mis > 0 & nobs - num.mis > reg.min]
     icomplete <- (1:nassets)[num.mis == 0]
     if(any(num.mis>0)) {
@@ -215,10 +215,10 @@
             t.seq <- 1:t.nfac
             #t.load <- lsfit(xw[t.okay, i], scores[t.okay, t.seq],intercept=FALSE)$coef / dsquare[t.seq]
             regs <- lsfit(                   #amended version, identical for complete data, if scores calculated from loadings (not gma)
-                        y=x[t.okay, i, drop=FALSE], 
+                        y=x[t.okay, i, drop=FALSE],
                         x=addq(unwscores[t.okay, t.seq, drop=FALSE]), #add regressor for qua
-                        wt = weight[t.okay], 
-                        intercept = FALSE, 
+                        wt = weight[t.okay],
+                        intercept = FALSE,
                         tolerance = 1e-07,
                         yname = NULL
                         )
@@ -229,10 +229,10 @@
         }
     }
     scores1 <- addq(unwscores)
-    scores1w <- 
-        sweep(x=scores1, 
-        MARGIN=1, 
-        STATS=weight, 
+    scores1w <-
+        sweep(x=scores1,
+        MARGIN=1,
+        STATS=weight,
         FUN="*"
         )
     xtxixt <- solve(t(scores1w)%*%scores1)[nfac+1,,drop=FALSE]%*%t(scores1w) #WLS
@@ -274,14 +274,14 @@
 }
 #vcvce-----------------------------------
 ##' Extractor for covariance matrix
-##' 
+##'
 ##' @param x object of class ce
 ##' @param out component to return: M=factor1, S=factors 2:k, R=residual, T=M+S+R
 ##' @param units variance or correlation
 ##' @param po row/column identifiers
 ##' @return named list of the components specified in argument: out
 ##' @section Details: po is a vector of identifiers, a subset of the original data columnames
-##' @author Giles Heywood 
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export vcvce
 `vcvce` <- function(x,out=c("M","S","R","T"),units=c("variance","correlation"),po=buice(x)) {
@@ -291,7 +291,7 @@
     stopifnot(!any(is.na(po)))
     units <- match.arg(units)
     r <- list(M=NULL,S=NULL,R=NULL,T=NULL)
-    if("M" %in% out) r$M <- tcrossprod(x$loadings[po,1,drop=FALSE])  
+    if("M" %in% out) r$M <- tcrossprod(x$loadings[po,1,drop=FALSE])
     if("S" %in% out) r$S <- tcrossprod(x$loadings[po,-1,drop=FALSE])
     if("R" %in% out) r$R <- diag(as.numeric(x$uniqueness[po,]))
     if(all(c("M","S","R","T") %in% out)) r$T <- r$M+r$S+r$R
@@ -303,11 +303,11 @@
 }
 #ldggmace-----------------------------------
 ##' Extractor for loadings * fmp, (colnames=T, rownames=T)
-##' 
+##'
 ##' @param x object of class ce
 ##' @return named list(M,S,R)
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export ldggmace
 `ldggmace` <- function(x) {
@@ -320,11 +320,11 @@
 }
 #vfuce-----------------------------------
 ##' Convenience wrapper on vcvce(x)$T -the total covariance estimate for columns with full history
-##' 
+##'
 ##' @param x object of class ce
 ##' @return VCV matrix
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export vfuce
 `vfuce` <- function(x){
@@ -333,17 +333,17 @@
 }
 #ldgce-----------------------------------
 ##' Extractor for loadings
-##' 
+##'
 ##' @param x object of class ce
 ##' @return loadings matrix
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export ldgce
 `ldgce` <- function(x,type=c("fmp","hpl")){
     type <- match.arg(type)
     stopifnot(is(x,"ce"))
-    if(type=="fmp") {ldg <- x$loadings} else {ldg <- abs(x$loadings)}    
+    if(type=="fmp") {ldg <- x$loadings} else {ldg <- abs(x$loadings)}
     ldg*as.numeric(x$sdev)
 }
 `pococe` <- function(x){
@@ -352,12 +352,12 @@
 }
 #quace-----------------------------------
 ##' Extractor for score on quadratic component
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return matrix
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export quace
 `quace` <- function(x,ret){
@@ -366,12 +366,12 @@
 }
 #devce-----------------------------------
 ##' Extractor for score on: deviation of rem from x-section mean
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return matrix
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export devce
 `devce` <- function(x,ret){
@@ -381,12 +381,12 @@
 }
 #mktce-----------------------------------
 ##' Extractor for market component of return (factor 1)
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return matrix of attributed return
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export mktce
 `mktce` <- function(x,ret){
@@ -395,12 +395,12 @@
 }
 #sysce-----------------------------------
 ##' Extractor for systematic component of return (factors 2:k)
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return matrix of attributed return
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export sysce
 `sysce` <- function(x,ret){
@@ -409,12 +409,12 @@
 }
 #msrtce-----------------------------------
 ##' Extractor for components Market, Systematic, Residual, Total
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return matrix of attributed return
 ##' @section Details: the output has 4x columns of the input, grouped by component
-##' @author Giles Heywood 
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export msrtce
 `msrtce` <- function(x,ret) {
@@ -430,12 +430,12 @@
 }
 #msce-----------------------------------
 ##' Extractor for components Market+Systematic
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return matrix of attributed return
 ##' @section Details:
-##' @author Giles Heywood 
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export msce
 `msce` <- function(x,ret){
@@ -444,12 +444,12 @@
 }
 #stce-----------------------------------
 ##' Market,Systematic,Residual,Total returns, divided by estimated vol
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return named list of attributed and normalised return
 ##' @section Details: components / vol estimate, in-sample
-##' @author Giles Heywood 
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export stce
 `stce` <- function(x,ret){
@@ -465,12 +465,12 @@
 }
 #face-----------------------------------
 ##' Returns decomposed by all factors 1:k, + residual, + quadratic
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns matrix
 ##' @return named list of attributed return: 1:k, ret, rer, qua
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export face
 `face` <- function(x,ret){
@@ -478,12 +478,12 @@
     if(!vz(ret)) ret <- mz(ret)
     sco <- scoce(x,ret)
     ldg <- t(ldgce(x))
-    qua <- quace(x,ret) 
+    qua <- quace(x,ret)
     n <- nrow(ldg)
     res <- vector("list",n+3)
     res[[n+1]] <- ret
     res[[n+2]] <- ret
-    res[[n+3]] <- qua*NA    
+    res[[n+3]] <- qua*NA
     for(i in 1:n) {
         res[[i]] <- mz(sco[,i,drop=FALSE]%*%ldg[i,,drop=FALSE])
         res[[n+2]] <- res[[n+2]] - res[[i]]
@@ -493,12 +493,12 @@
 }
 #fmpce-----------------------------------
 ##' Factor mimicking portfolio weights (but still in reduced dimension ie non-NA columns only)
-##' 
+##'
 ##' @param x object of class ce
 ##' @param type fmp for factor portfolio weights
 ##' @return matrix
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export fmpce
 `fmpce` <- function(x,type=c("fmp","hpl")){
@@ -512,11 +512,11 @@
 }
 #metce-----------------------------------
 ##' Extractor for method
-##' 
+##'
 ##' @param x object of class ce
 ##' @return method
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export metce
 #metce - method, (colnames=F, rownames=T)
@@ -526,13 +526,13 @@
 }
 #scoce-----------------------------------
 ##' Scores
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns
 ##' @param type fmp for scores
 ##' @return scores
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export scoce
 `scoce` <- function(x,ret,type=c("fmp","hpl")){
@@ -544,12 +544,12 @@
 }
 #resce-----------------------------------
 ##' Residual return
-##' 
+##'
 ##' @param x object of class ce
 ##' @param ret returns
 ##' @return residuals
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export resce
 `resce` <- function(x,ret){
@@ -558,11 +558,11 @@
 }
 #spvce-----------------------------------
 ##' Extractor for pecific vol
-##' 
+##'
 ##' @param x object of class ce
 ##' @return specific vol
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export spvce
 `spvce` <- function(x){
@@ -571,11 +571,11 @@
 }
 #sdvce-----------------------------------
 ##' Extractor for standard deviation
-##' 
+##'
 ##' @param x object of class ce
 ##' @return standard deviation (vol)
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export sdvce
 `sdvce` <- function(x){
@@ -584,10 +584,10 @@
 }
 #unqce-----------------------------------
 ##' Extractor for uniqueness
-##' 
+##'
 ##' @param x object of class ce
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export unqce
 `unqce` <- function(x){
@@ -596,11 +596,11 @@
 }
 #fulce-----------------------------------
 ##' Extractor for identifiers of columns with no NA (full data)
-##' 
+##'
 ##' @param x object of class ce
 ##' @return identifiers
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export fulce
 `fulce` <- function(x){
@@ -609,11 +609,11 @@
 }
 #buice-----------------------------------
 ##' Extractor for identifiers (all)
-##' 
+##'
 ##' @param x object of class ce
 ##' @return identifiers : colnames from original data
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export buice
 `buice` <- function(x){
@@ -622,14 +622,14 @@
 }
 #prdce-----------------------------------
 ##' Portfolio risk decomposition
-##' 
+##'
 ##' @param x object of class ce
 ##' @param po column matrix of portfolio weights with rownames=identifiers
 ##' @param scaletovol flag : scale variance contributions by 1/sqrt(total variance), so 'units of variance are rescaled to add up to portfolio vol'
 ##' @param security flags use of variance only
 ##' @return identifiers : matrix, rows are securities, columns are M=Market, S=Systematic, R=Residual, TOT=total, F1=factor1 vol
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export prdce
 `prdce` <- function(
@@ -659,11 +659,11 @@
 }
 #genfrdce-----------------------------------
 ##' Factor risk decomposition by security
-##' 
+##'
 ##' @param x object of class ce
 ##' @return matrix, rows=security, columns = (total, residual, factors 1:k)
-##' @section Details: 
-##' @author Giles Heywood 
+##' @section Details:
+##' @author Giles Heywood
 ##' @family extractors
 ##' @export genfrdce
 `genfrdce` <- function(x=getce()) {
@@ -674,3 +674,10 @@
     va
 }
 `buialigned` <- function(x,ret) { all(colnames(ret)==rownames(x$loadings)) }
+
+##' @export
+extractce <- function(ce,buix=buice(ce)) {
+  for(i in 1:8) ce[[i]] <- ce[[i]][buix,]
+  for(i in 12:13) ce[[i]] <- ce[[i]][buix]
+  ce
+}
