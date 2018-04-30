@@ -681,3 +681,59 @@ extractce <- function(ce,buix=buice(ce)) {
   for(i in 12:13) ce[[i]] <- ce[[i]][buix]
   ce
 }
+
+#' @export
+PCAfact  <-     function(inputdata,
+                         nfactors)
+  #decomposes the covariance matrix into the first n factors (PCs) and a diagonal plus an error
+{
+  s           <- cov(inputdata, use = "complete")
+  n           <- dim(s)[1]
+  eig         <- eigen(s)
+  inc         <- c(rep(1, nfactors), rep(0, (n - nfactors)))
+  out         <- 1 - inc
+  s1          <- eig$vectors %*% diag(inc * eig$values) %*% t(eig$vectors)
+  psi         <- diag(s - s1)
+
+  lambda      <-
+    t((eig$vectors %*% diag(sqrt(eig$values))[, 1:nfactors]))
+  gamma       <-
+    (eig$vectors %*% diag(1. / sqrt(eig$values))[, 1:nfactors])
+
+  #flip the sign if needbe
+  lsign         <- sign(apply(lambda, 1, sum, na.rm = TRUE))
+  lambdaflip   <- sweep(
+    x = lambda,
+    MARGIN = 1,
+    FUN = "*",
+    STATS = lsign
+  )
+  gammaflip    <- sweep(
+    x = gamma,
+    MARGIN = 2,
+    FUN = "*",
+    STATS = lsign
+  )
+  dimnames(gammaflip) <-
+    list(1:dim(gammaflip)[1], 1:dim(gammaflip)[2])
+
+  scores      <- inputdata %*% gammaflip
+
+  out <- list     (
+    uniqueness              = psi,
+    var.loadings            = lambdaflip,
+    var.factors             = scores,
+    var.beta                = gammaflip,
+    input.data              = inputdata
+  )
+  out
+}
+chkPCAfact <- function() {
+  x1 <- matrix(rnorm(1000),100,10)
+  x2 <- PCAfact(x1,3)
+  x3a <- x1%*%x2$var.beta
+  stopifnot(all(abs(apply(x3a,2,sd)-1)<1e-10))
+  x3 <- x3a%*%x2$var.loadings
+  x4 <- data.table(y=as.numeric(x1),yhat=as.numeric(x3))
+  .4<summary(lm(y~yhat,data=x4))$r.squared
+}
