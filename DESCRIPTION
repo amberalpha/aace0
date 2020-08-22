@@ -8,4 +8,4 @@ Maintainer: <maxprobable@gmail.com>
 Description: merger of aace and aa040co
 License: contract
 Depends: aautil,data.table,quadprog,zoo
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.1

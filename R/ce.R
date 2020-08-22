@@ -267,6 +267,197 @@
     class(ans) <- "ce"
     ans
 }
+
+##' @export
+fms3 <- function( #minimalist: pure truncation, optimised 'fcp' are returned as extra element in list
+  x,
+  weight=rep(1,nrow(x)),
+  center=F,
+  kbar=3,
+  shrinkb=0
+){
+
+  x1 <- cov.wt(x,wt=weight,method="ML",center=center)$cov
+  x2 <- eigen(x=x1)
+  eig.val <- x2$value[1:kbar]
+  eig.val[eig.val < 0] <- .Machine$double.eps
+  ldg <- sweep(x2$vectors[,1:kbar],STAT=sign(apply(x2$vectors[,1:kbar],2,sum))/sqrt(eig.val),MAR=2,FUN=`/`) #sum +ve
+  fmp <- sweep(x2$vectors[,1:kbar],STAT=sign(apply(x2$vectors[,1:kbar],2,sum))/sqrt(eig.val),MAR=2,FUN=`*`) #sum +ve
+  delta <- diag(x1-tcrossprod(ldg))
+
+  Dmat <- diag(delta) #objective: minimise specific variance
+  dvec <- rep(0,nrow(ldg)) #no linear objective
+  Amat <- ldg
+  meq <- ncol(Amat)
+  fcp <- ldg*NA
+  for(j in 1:ncol(ldg)) {
+    bvec <- rep(0,ncol(ldg))  #zero exposure to loading<>j
+    bvec[j] <- 1 #unit exposure to loading==j
+    fcp[,j] <- solve.QP(Dmat=Dmat, dvec=dvec, Amat=Amat, bvec=bvec, meq=meq, factorized=FALSE)$solution
+  }
+
+  ans <- list( #~class 'factor model stat' in package BurstFin
+    loadings=structure(ldg,dimnames=list(dimnames(x1)[[2]], paste0("loadings",1:ncol(ldg)))),
+    fmp=structure(fmp,dimnames=list(dimnames(x1)[[2]], paste0("fmp",1:ncol(ldg)))),
+    fcp=structure(fcp,dimnames=list(dimnames(x1)[[2]], paste0("fcp",1:ncol(ldg)))),
+    full=structure(matrix(T,nrow(ldg),1),dimnames=list(dimnames(x1)[[2]], "full")),
+    #uniqueness=structure(as.matrix(delta/diag(x1)),dimnames=list(dimnames(x1)[[2]], "uniqueness")),
+    sdev=structure(as.matrix(rep(1,ncol(x))),dimnames=list(dimnames(x1)[[2]], "sdev")), #unity because using cov not cor
+    uniqueness=structure(as.matrix(delta),dimnames=list(dimnames(x1)[[2]], "uniqueness")),
+    weight=weight/sum(weight),
+    call=match.call()
+  )
+  class(ans) <- "ce"
+  ans
+}
+
+
+##' @export
+fms2b <- function( #transferred from scripted 2020-08-06, not fully tested but ~ok (simplified)
+  x,
+  weight=seq(1, 3, length=nrow(x)),
+  center=F,
+  nfac=20,
+  minunique=0.001,       #minunique=0 for PB original
+  shrinkb=0.3,           #factor 1 shrinkage to mean, shrink=1 for equal factor 1 loadings
+  shrinkv=shrinkb        #vol shrinkage to mean
+){
+  sdev <- apply(x^2,2,weighted.mean,w=weight)^.5
+  x1 <- sweep(x,MAR=2,STAT=sdev,FUN=`/`) #scaled x
+
+  cor1 <- cov.wt(x1,wt=weight,method="ML",center=center)$cov
+
+  for(i in 1:2) {  #2: legacy limit
+    eig <- eigen(x=cor1)
+    eig.val <- eig$value[1:nfac]
+    eig.val[eig.val < 0] <- .Machine$double.eps
+    l1 <- sweep(eig$vectors[,1:nfac],STAT=sign(apply(eig$vectors[,1:nfac],2,sum))/sqrt(eig.val),MAR=2,FUN=`/`)
+    if(min(1-rowSums(l1^2))<0) break()
+    diag(cor1) <- diag(cor1) - pmax(pmin(1 - rowSums(l1^2),1),0)
+  }
+
+  ldg <- l1
+  ldg[,1] <- l1[,1]*(1-shrinkb)+mean(l1[,1]*shrinkb,na.rm=TRUE) #shrink
+
+  comm <- rowSums(ldg^2)
+  rescale <- comm > 1-minunique
+  ldg[rescale,] <- sweep(x=ldg[rescale,,drop=FALSE],STATS=sqrt(comm[rescale]/(1-minunique)),FUN="/",MARGIN=1)
+
+  Dmat <- diag((1-rowSums(ldg^2))*sdev**2) #objective: minimise specific variance
+  dvec <- rep(0,nrow(ldg)) #no linear objective
+  Amat <- ldg
+  meq <- ncol(Amat)
+  fcp <- ldg*NA
+  for(j in 1:ncol(ldg)) {
+    bvec <- rep(0,ncol(ldg))  #zero exposure to loading<>j
+    bvec[j] <- 1 #unit exposure to loading==j
+    fcp[,j] <- solve.QP(Dmat=Dmat, dvec=dvec, Amat=Amat, bvec=bvec, meq=meq, factorized=FALSE)$solution
+  }
+
+  ans <- list( #matches the class 'factor model stat' in package BurstFin
+    loadings=structure(ldg,dimnames=list(dimnames(x1)[[2]], paste0("loadings",1:ncol(ldg)))),
+    fmp=structure(fcp,dimnames=list(dimnames(x1)[[2]], paste0("fmp",1:ncol(ldg)))),
+    full=structure(matrix(T,nrow(ldg),1),dimnames=list(dimnames(x1)[[2]], "full")),
+    uniqueness=structure(as.matrix(1 - rowSums(ldg^2)),dimnames=list(dimnames(x1)[[2]], "uniqueness")),
+    sdev=structure(as.matrix(sdev)*(1-shrinkv)+mean(sdev)*shrinkv,dimnames=list(dimnames(x1)[[2]], "sdev")),
+    weight=weight/sum(weight),
+    call=match.call()
+  )
+  class(ans) <- "ce"
+  ans
+}
+
+##' @export
+fms2a <- function( #transferred from pxmo 2020-06-22, not fully tested but ~ok (simplified)
+  x=x02,
+  weight=seq(1, 3, length=nrow(x)),
+  center=F,
+  nfac=20,
+  minunique=0.001,       #minunique=0 for PB original
+  shrinkb=0.3,           #factor 1 shrinkage to mean, shrink=1 for equal factor 1 loadings
+  shrinkv=shrinkb        #vol shrinkage to mean
+){
+  if(is.data.frame(x)) {
+    x <- as.matrix(x)
+  }
+  stopifnot(  shrinkb>=0 &&
+                shrinkb<=1 &&
+                shrinkv>=0 &&
+                !any(is.na(x)) &&
+                !any(is.na(weight)) &&
+                length(weight)==nrow(x) &&
+                all(weight>0) &&
+                is.matrix(x) &&
+                is.numeric(x) &&
+                all(is.finite(x)) &&
+                is.logical(center)
+  )
+  weight <- weight / sum(weight)
+
+  if(center) {x <- sweep(x,STAT=colMeans(x),MAR=2,FUN=`-`)}
+  sdev <- sqrt(apply(X=x, MARGIN=2, FUN=function(z, weight){sum(weight*z^2)},weight=weight))
+  x <- sweep(x,STAT=sdev,MAR=2,FUN=`/`)
+  xw <- sqrt(weight) * x
+  #stopifnot(all.equal(as.numeric(diag(cov.wt(x,wt=weight,method="ML",center=FALSE)$cov)),rep(1,ncol(xw))))
+
+  fx.svd <- svd(x=xw, nu=0)
+  loadings <- sweep(fx.svd$v,STAT=1./fx.svd$d,MAR=2,FUN=`/`)[, 1:nfac, drop=FALSE]
+  uniqueness <- pmax(pmin(1 - rowSums(loadings^2),1),0)
+
+  cor.red <- cov.wt(x,wt=weight,method="ML",center=FALSE)$cov
+  diag(cor.red) <- diag(cor.red) - uniqueness
+
+  t.eig <- eigen(x=cor.red)
+  t.val <- t.eig$value[1:nfac]
+  t.val[t.val < 0] <- .Machine$double.eps
+  loadings <- sweep(t.eig$vectors[,1:nfac],STAT=sign(apply(t.eig$vectors[,1:nfac],2,sum))/sqrt(t.val),MAR=2,FUN=`/`)
+
+  loadings[,1] <- loadings[,1]*(1-shrinkb)+mean(loadings[,1]*shrinkb,na.rm=TRUE) #shrink factor 1 loadings [why not the rest?]
+  comm <- rowSums(loadings^2)
+  if(any(comm > 1-minunique)) {   # adjust loadings where communalities exceed threshold
+    rescale <- comm > 1-minunique
+    loadings[rescale,] <- sweep(x=loadings[rescale,,drop=FALSE],STATS=sqrt(comm[rescale]/(1-minunique)),FUN="/",MARGIN=1)
+    comm[rescale] <- rowSums(loadings[rescale,,drop=FALSE]^2)
+  }
+  uniqueness <- 1 - rowSums(loadings^2)
+
+  Dmat <- diag(uniqueness*sdev**2) #objective: minimise specific variance
+  dvec <- rep(0,nrow(loadings)) #no linear objective
+  Amat <- loadings
+  meq <- ncol(Amat)
+  fmp <- loadings*NA
+  for(j in 1:ncol(loadings)) {
+    bvec <- rep(0,ncol(loadings))  #zero exposure to loading<>j
+    bvec[j] <- 1 #unit exposure to loading==j
+    fmp[,j] <- solve.QP(Dmat=Dmat, dvec=dvec, Amat=Amat, bvec=bvec, meq=meq, factorized=FALSE)$solution
+  }
+
+  comm <- rowSums(loadings^2)
+  rescale <- comm > 1-minunique
+  if(any(rescale)) {   # adjust loadings where communalities exceed threshold
+    loadings[rescale,] <- sweep(x=loadings[rescale,,drop=FALSE],STATS=sqrt(comm[rescale]/(1-minunique)),FUN="/",MARGIN=1)
+  }
+
+  ans <- list(
+    loadings=loadings,     #loadings for correlation
+    fmp=fmp,         #fmp in units of standardised data, full=TRUE columns only
+    full=matrix(T,nrow(loadings),1), #all columns have no na
+    uniqueness=as.matrix(1 - rowSums(loadings^2)),
+    sdev=as.matrix(sdev)*(1-shrinkv)+mean(sdev)*shrinkv,
+    weight=weight,
+    call=match.call()
+  )
+  dimnames(ans$loadings) <- list(dimnames(xw)[[2]], paste0("loadings",1:ncol(loadings)))
+  dimnames(ans$fmp) <- list(dimnames(xw)[[2]], paste0("fmp",1:ncol(loadings)))
+  dimnames(ans$sdev) <- list(dimnames(xw)[[2]], "sdev")
+  dimnames(ans$uniqueness) <- list(dimnames(xw)[[2]], "uniqueness")
+  dimnames(ans$full) <- list(dimnames(xw)[[2]], "full")
+  class(ans) <- "ce"
+  ans
+}
+
+
+
 `addq` <- function(x)
 {
     stopifnot(is.matrix(x))
@@ -503,7 +694,7 @@
 ##' @export fmpce
 `fmpce` <- function(x,type=c("fmp","hpl")){
     type <- match.arg(type)
-    stopifnot(is(x,"ce"))
+    #stopifnot(is(x,"ce"))
     if(type=="fmp") {
         x$fmp/as.numeric(x$sdev)
     } else {
