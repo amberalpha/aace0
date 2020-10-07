@@ -274,26 +274,36 @@ fms3 <- function( #minimalist: pure truncation, optimised 'fcp' are returned as 
   weight=rep(1,nrow(x)),
   center=F,
   kbar=3,
-  shrinkb=0
+  shrinkb=0,
+  pola=c(1,-1,-1)[1:kbar], #sign(sum(eig.vec)) : defined this way PCL is (-,-)
+  fcpdo=T
 ){
-
-  x1 <- cov.wt(x,wt=weight,method="ML",center=center)$cov
+  x0 <- cov.wt(x,wt=weight,method="ML",center=center,cor=T)
+  x1 <- x0$cor
   x2 <- eigen(x=x1)
   eig.val <- x2$value[1:kbar]
   eig.val[eig.val < 0] <- .Machine$double.eps
-  ldg <- sweep(x2$vectors[,1:kbar],STAT=sign(apply(x2$vectors[,1:kbar],2,sum))/sqrt(eig.val),MAR=2,FUN=`/`) #sum +ve
-  fmp <- sweep(x2$vectors[,1:kbar],STAT=sign(apply(x2$vectors[,1:kbar],2,sum))/sqrt(eig.val),MAR=2,FUN=`*`) #sum +ve
+  evec <- sweep(x2$vectors,STAT=sign(apply(x2$vectors,2,sum)),MAR=2,FUN=`/`)
+  evec[,seq_along(pola)] <- sweep(evec[,seq_along(pola),drop=F],STAT=pola,MAR=2,FUN=`/`)
+  ldg <- sweep(x2$vectors[,1:kbar,drop=F],STAT=pola*sign(apply(x2$vectors[,1:kbar,drop=F],2,sum))/sqrt(eig.val),MAR=2,FUN=`/`) #sign(sum)
+  fmp <- sweep(x2$vectors[,1:kbar,drop=F],STAT=pola*sign(apply(x2$vectors[,1:kbar,drop=F],2,sum))/sqrt(eig.val),MAR=2,FUN=`*`) #sign(sum)
+  # ldg <- sweep(evec,STAT=sqrt(eig.val),MAR=2,FUN=`*`) #sign(sum)
+  # fmp <- sweep(evec,STAT=sqrt(eig.val),MAR=2,FUN=`/`) #sign(sum)
   delta <- diag(x1-tcrossprod(ldg))
 
-  Dmat <- diag(delta) #objective: minimise specific variance
-  dvec <- rep(0,nrow(ldg)) #no linear objective
-  Amat <- ldg
-  meq <- ncol(Amat)
-  fcp <- ldg*NA
-  for(j in 1:ncol(ldg)) {
-    bvec <- rep(0,ncol(ldg))  #zero exposure to loading<>j
-    bvec[j] <- 1 #unit exposure to loading==j
-    fcp[,j] <- solve.QP(Dmat=Dmat, dvec=dvec, Amat=Amat, bvec=bvec, meq=meq, factorized=FALSE)$solution
+  if(fcpdo) {
+    Dmat <- diag(delta) #objective: minimise specific variance
+    dvec <- rep(0,nrow(ldg)) #no linear objective
+    Amat <- ldg
+    meq <- ncol(Amat)
+    fcp <- ldg*NA
+    for(j in 1:ncol(ldg)) {
+      bvec <- rep(0,ncol(ldg))  #zero exposure to loading<>j
+      bvec[j] <- 1 #unit exposure to loading==j
+      fcp[,j] <- solve.QP(Dmat=Dmat, dvec=dvec, Amat=Amat, bvec=bvec, meq=meq, factorized=FALSE)$solution
+  }
+  } else {
+    fcp <- fmp
   }
 
   ans <- list( #~class 'factor model stat' in package BurstFin
@@ -302,8 +312,11 @@ fms3 <- function( #minimalist: pure truncation, optimised 'fcp' are returned as 
     fcp=structure(fcp,dimnames=list(dimnames(x1)[[2]], paste0("fcp",1:ncol(ldg)))),
     full=structure(matrix(T,nrow(ldg),1),dimnames=list(dimnames(x1)[[2]], "full")),
     #uniqueness=structure(as.matrix(delta/diag(x1)),dimnames=list(dimnames(x1)[[2]], "uniqueness")),
-    sdev=structure(as.matrix(rep(1,ncol(x))),dimnames=list(dimnames(x1)[[2]], "sdev")), #unity because using cov not cor
+    #sdev=structure(as.matrix(rep(1,ncol(x))),dimnames=list(dimnames(x1)[[2]], "sdev")), #unity because using cov not cor
+    sdev=structure(as.matrix(sqrt(diag(x0$cov))),dimnames=list(dimnames(x1)[[2]], "sdev")),
     uniqueness=structure(as.matrix(delta),dimnames=list(dimnames(x1)[[2]], "uniqueness")),
+    evec=evec,
+    eval=x2$value,
     weight=weight/sum(weight),
     call=match.call()
   )
@@ -692,13 +705,15 @@ fms2a <- function( #transferred from pxmo 2020-06-22, not fully tested but ~ok (
 ##' @author Giles Heywood
 ##' @family extractors
 ##' @export fmpce
-`fmpce` <- function(x,type=c("fmp","hpl")){
+`fmpce` <- function(x,type=c("fmp","hpl","fcp")){
     type <- match.arg(type)
     #stopifnot(is(x,"ce"))
     if(type=="fmp") {
         x$fmp/as.numeric(x$sdev)
-    } else {
+    } else if(type=='hpl'){
         x$hpl/as.numeric(x$sdev)
+    } else if(type=='fcp'){
+        x$fcp/as.numeric(x$sdev) #for fms3, these are optimised and fmp are not
     }
 }
 #metce-----------------------------------
