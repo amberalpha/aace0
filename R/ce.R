@@ -324,6 +324,35 @@ fms3 <- function( #minimalist: pure truncation, optimised 'fcp' are returned as 
   ans
 }
 
+##' @export
+fms4 <- function(
+  x,
+  center=T,
+  kbar=ncol(x),
+  pola=c(1,-1,-1) #sign(sum(eig.vec)) : defined this way PCL is (-,-)
+){
+  x0 <- cov.wt(x,method="ML",center=center,cor=T)
+  x1 <- x0$cor
+  x2 <- eigen(x=x1)
+  eig.val <- pmax(x2$value[1:kbar],.Machine$double.eps)
+  eig.vec <- sweep(x2$vectors,STAT=sign(apply(x2$vectors,2,sum)),MAR=2,FUN=`/`) #all +ve
+  eig.vec[,seq_along(pola)] <- sweep(eig.vec[,seq_along(pola),drop=F],STAT=pola,MAR=2,FUN=`/`) #adjust
+  ldg <- sweep(eig.vec[,1:kbar,drop=F],STAT=sqrt(eig.val[1:kbar]),MAR=2,FUN=`*`)
+  fmp <- sweep(eig.vec[,1:kbar,drop=F],STAT=sqrt(eig.val[1:kbar]),MAR=2,FUN=`/`)
+  delta <- diag(pmax(x1-tcrossprod(ldg),.Machine$double.eps))
+  ans <- list( #~class 'factor model stat' in package BurstFin
+    b=structure(ldg,dimnames=list(dimnames(x1)[[2]], paste0("b",1:ncol(ldg)))),
+    h=structure(fmp,dimnames=list(dimnames(x1)[[2]], paste0("h",1:ncol(ldg)))),
+    sdev=structure(as.matrix(sqrt(diag(x0$cov))),dimnames=list(dimnames(x1)[[2]], "sdev")),
+    evec=eig.vec, #sign: conventional * pola
+    eval=x2$value, #raw
+    call=match.call()
+  )
+  ans
+}
+
+
+
 
 ##' @export
 fms2b <- function( #transferred from scripted 2020-08-06, not fully tested but ~ok (simplified)
